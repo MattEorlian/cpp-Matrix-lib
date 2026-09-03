@@ -273,20 +273,21 @@ public://运算
         return tmp;
     }
     
-    matrix operator*(const matrix& other) const
+    template<typename T_Rhs> auto operator*(const matrix<T_Rhs>& other) const
     {
         if(N_col != other.N_row)
         {
             throw std::invalid_argument("N_col of lhs is not equal to N_row of rhs when been multiplied.");
         }
         int tmp_row = N_row, tmp_col = other.N_col;
-        T** tmp_arr = (T**)alloc2d(tmp_row,tmp_col,sizeof(T));
+        using T_Dst = decltype(arr[0][0] * other[0][0]);
+        T_Dst** tmp_arr = (T_Dst**)alloc2d(tmp_row,tmp_col,sizeof(T_Dst));
         for(int i = 0;i < tmp_row;i++)
         {
             for(int j = 0;j < tmp_col;j++)
             {
                 try{
-                    new (&tmp_arr[i][j]) T(prod_row_and_col((*this),i,other,j));
+                    new (&tmp_arr[i][j]) T_Dst(prod_row_and_col((*this),i,other,j));
                 }
                 catch(...)
                 {
@@ -295,7 +296,7 @@ public://运算
                 }
             }
         }
-        return matrix(tmp_row,tmp_col,tmp_arr);
+        return matrix<T_Dst>(tmp_row,tmp_col,tmp_arr);
     }
 
     matrix operator|(const matrix& other) const//横向拼接矩阵
@@ -406,9 +407,15 @@ public://友元
 
     template<typename T_Mat,typename T_Dst> 
     friend matrix<T_Dst> convert(const matrix<T_Mat>& src);
+
+    template<typename T_Mat,typename T_Val> 
+    friend auto operator*(const matrix<T_Mat>& mat,const T_Val& val);
+
+    template<typename T_Mat,typename T_Val> 
+    friend auto operator*(const T_Val& val,const matrix<T_Mat>& mat);
 };
 
-template<typename T> T prod_row_and_col(const matrix<T>& lhs,int row_idx,const matrix<T>& rhs,int col_idx)
+template<typename T_Lhs,typename T_Rhs> auto prod_row_and_col(const matrix<T_Lhs>& lhs,int row_idx,const matrix<T_Rhs>& rhs,int col_idx)
 {
     if(row_idx < 0 || row_idx >= lhs.row()||
     col_idx < 0 || col_idx >= rhs.col())
@@ -416,7 +423,7 @@ template<typename T> T prod_row_and_col(const matrix<T>& lhs,int row_idx,const m
         throw std::invalid_argument("Row or column index out of range.");
     }
     if(lhs.col() != rhs.row()) throw std::invalid_argument("Matrix size differs.");
-    T ans(lhs[row_idx][0] * rhs[0][col_idx]);
+    auto ans = lhs[row_idx][0] * rhs[0][col_idx];
     for(int i = 1;i < lhs.col();i++)
     {
         ans += lhs[row_idx][i] * rhs[i][col_idx];
@@ -446,18 +453,52 @@ template<typename T> matrix<T> trans(const matrix<T>& obj)//obj的转置矩阵
     return matrix(tmp_row,tmp_col,tmp_arr);
 }
 
-template<typename T_Mat,typename T_Val> matrix<T_Mat> operator*(const T_Val& val,const matrix<T_Mat>& mat)
+template<typename T_Mat,typename T_Val> auto operator*(const matrix<T_Mat>& mat,const T_Val& val)
 {
-    matrix tmp(mat);
-    tmp *= val;
-    return tmp;
+    using T_Dst = decltype(mat[0][0] * val);
+    int tmp_row = mat.row();
+    int tmp_col = mat.col();
+    T_Dst** tmp_arr = (T_Dst**)alloc2d(tmp_row,tmp_col,sizeof(T_Dst));
+    for(int i = 0;i < tmp_row;i++)
+    {
+        for(int j = 0;j < tmp_col;j++)
+        {
+            try
+            {
+                new (&tmp_arr[i][j]) T_Dst(mat[i][j] * val);
+            }
+            catch(...)
+            {
+                rollback2d(tmp_arr,tmp_row,tmp_col,i,j);
+                throw;
+            }
+        }
+    }
+    return matrix(tmp_row,tmp_col,tmp_arr);
 }
 
-template<typename T_Mat,typename T_Val> matrix<T_Mat> operator*(const matrix<T_Mat>& mat,const T_Val& val)
+template<typename T_Mat,typename T_Val> auto operator*(const T_Val& val,const matrix<T_Mat>& mat)
 {
-    matrix tmp(mat);
-    tmp *= val;
-    return tmp;
+    using T_Dst = decltype(mat[0][0] * val);
+    int tmp_row = mat.row();
+    int tmp_col = mat.col();
+    T_Dst** tmp_arr = (T_Dst**)alloc2d(tmp_row,tmp_col,sizeof(T_Dst));
+    for(int i = 0;i < tmp_row;i++)
+    {
+        for(int j = 0;j < tmp_col;j++)
+        {
+            try
+            {
+                new (&tmp_arr[i][j]) T_Dst(mat[i][j] * val);
+            }
+            catch(...)
+            {
+                rollback2d(tmp_arr,tmp_row,tmp_col,i,j);
+                throw;
+            }
+        }
+    }
+    return matrix(tmp_row,tmp_col,tmp_arr);
 }
 
 }
